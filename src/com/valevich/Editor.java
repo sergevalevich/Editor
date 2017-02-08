@@ -34,108 +34,9 @@ public class Editor {
     private String fileName;
 
     public Editor() {
-        frame = new JFrame("Графический редактор");
-        frame.setBounds(350,0,1000,1000);
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        JMenuBar menuBar = new JMenuBar();
-        frame.setJMenuBar(menuBar);
-        menuBar.setBounds(0, 0, 350, 60);
-        JMenu fileMenu = new JMenu("Файл");
-        menuBar.add(fileMenu);
+        configureFrame();
 
-        Action loadAction = new AbstractAction("Загрузить") {
-            public void actionPerformed(ActionEvent event) {
-                JFileChooser jf = new JFileChooser();
-                int result = jf.showOpenDialog(null);
-                if (result == JFileChooser.APPROVE_OPTION) {
-                    try {
-                        // при выборе изображения подстраиваем размеры формы
-                        // и панели под размеры данного изображения
-                        fileName = jf.getSelectedFile().getAbsolutePath();
-                        File iF = new File(fileName);
-                        jf.addChoosableFileFilter(new TextFileFilter(".png"));
-                        jf.addChoosableFileFilter(new TextFileFilter(".jpg"));
-                        image = ImageIO.read(iF);
-                        isLoading = true;
-                        frame.setSize(image.getWidth() + 40, image.getWidth() + 80);
-                        panel.setSize(image.getWidth(), image.getWidth());
-                        panel.repaint();
-                    } catch (FileNotFoundException ex) {
-                        JOptionPane.showMessageDialog(frame, "Такого файла не существует");
-                    } catch (IOException ex) {
-                        JOptionPane.showMessageDialog(frame, "Исключение ввода-вывода");
-                    } catch (Exception ex) {
-                    }
-                }
-            }
-        };
-        JMenuItem loadMenu = new JMenuItem(loadAction);
-        fileMenu.add(loadMenu);
-
-        Action saveAction = new AbstractAction("Сохранить") {
-            public void actionPerformed(ActionEvent event) {
-                try {
-                    JFileChooser jf = new JFileChooser();
-                    // Создаем фильтры  файлов
-                    TextFileFilter pngFilter = new TextFileFilter(".png");
-                    TextFileFilter jpgFilter = new TextFileFilter(".jpg");
-                    if (fileName == null) {
-                        // Добавляем фильтры
-                        jf.addChoosableFileFilter(pngFilter);
-                        jf.addChoosableFileFilter(jpgFilter);
-                        int result = jf.showSaveDialog(null);
-                        if (result == JFileChooser.APPROVE_OPTION) {
-                            fileName = jf.getSelectedFile().getAbsolutePath();
-                        }
-                    }
-                    // Смотрим какой фильтр выбран
-                    if (jf.getFileFilter() == pngFilter) {
-                        ImageIO.write(image, "png", new File(fileName + ".png"));
-                    } else {
-                        ImageIO.write(image, "jpeg", new File(fileName + ".jpg"));
-                    }
-                } catch (IOException ex) {
-                    JOptionPane.showMessageDialog(frame, "Ошибка ввода-вывода");
-                }
-            }
-        };
-        JMenuItem saveMenu = new JMenuItem(saveAction);
-        fileMenu.add(saveMenu);
-
-        Action saveasAction = new AbstractAction("Сохранить как...") {
-            public void actionPerformed(ActionEvent event) {
-                try {
-                    JFileChooser jf = new JFileChooser();
-                    // Создаем фильтры для файлов
-                    TextFileFilter pngFilter = new TextFileFilter(".png");
-                    TextFileFilter jpgFilter = new TextFileFilter(".jpg");
-                    // Добавляем фильтры
-                    jf.addChoosableFileFilter(pngFilter);
-                    jf.addChoosableFileFilter(jpgFilter);
-                    int result = jf.showSaveDialog(null);
-                    if (result == JFileChooser.APPROVE_OPTION) {
-                        fileName = jf.getSelectedFile().getAbsolutePath();
-                    }
-                    // Смотрим какой фильтр выбран
-                    if (jf.getFileFilter() == pngFilter) {
-                        ImageIO.write(image, "png", new File(fileName + ".png"));
-                    } else {
-                        ImageIO.write(image, "jpeg", new File(fileName + ".jpg"));
-                    }
-                } catch (IOException ex) {
-                    JOptionPane.showMessageDialog(frame, "Ошибка ввода-вывода");
-                }
-            }
-        };
-        JMenuItem saveasMenu = new JMenuItem(saveasAction);
-        fileMenu.add(saveasMenu);
-
-        panel = new MyPanel();
-        panel.setBounds(30, 30, 260, 260);
-        panel.setBackground(Color.white);
-        panel.setOpaque(true);
-        frame.add(panel);
 
         JToolBar toolbar = new JToolBar("Toolbar", JToolBar.VERTICAL);
 
@@ -170,7 +71,7 @@ public class Editor {
         });
         toolbar.add(textbutton);
 
-        JButton linebutton = new JButton(new ImageIcon("line.png"));
+        JButton linebutton = new JButton(new ImageIcon("res/line.png"));
         linebutton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent event) {
                 mode = 4;
@@ -483,14 +384,120 @@ public class Editor {
         frame.setBounds(350,0,1000,1000);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setJMenuBar(createMenuBar());
-
+        frame.add(createPanel());
     }
 
     private JMenuBar createMenuBar() {
         JMenuBar menuBar = new JMenuBar();
         menuBar.setBounds(0, 0, 350, 60);
-        menuBar.add(new JMenu("Файл"););
+        menuBar.add(createFileMenu());
         return menuBar;
+    }
+
+    private JMenu createFileMenu() {
+        JMenu fileMenu = new JMenu("Файл");
+        fileMenu.add(createLoadFileMenuItem());
+        fileMenu.add(createSaveFileMenuItem());
+        fileMenu.add(createSaveAsFileMenuItem());
+        return fileMenu;
+    }
+
+    private JMenuItem createLoadFileMenuItem() {
+        Action loadAction = new AbstractAction("Загрузить") {
+            public void actionPerformed(ActionEvent event) {
+                JFileChooser jf = new JFileChooser();
+                int result = jf.showOpenDialog(null);
+                if (result == JFileChooser.APPROVE_OPTION) {
+                    try {
+                        // при выборе изображения подстраиваем размеры формы
+                        // и панели под размеры данного изображения
+                        fileName = jf.getSelectedFile().getAbsolutePath();
+                        File iF = new File(fileName);
+                        jf.addChoosableFileFilter(new TextFileFilter(".png"));
+                        jf.addChoosableFileFilter(new TextFileFilter(".jpg"));
+                        image = ImageIO.read(iF);
+                        isLoading = true;
+                        frame.setSize(image.getWidth() + 40, image.getWidth() + 80);
+                        panel.setSize(image.getWidth(), image.getWidth());
+                        panel.repaint();
+                    } catch (FileNotFoundException ex) {
+                        JOptionPane.showMessageDialog(frame, "Такого файла не существует");
+                    } catch (IOException ex) {
+                        JOptionPane.showMessageDialog(frame, "Исключение ввода-вывода");
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        };
+        return new JMenuItem(loadAction);
+    }
+
+    private JMenuItem createSaveFileMenuItem() {
+        Action saveAction = new AbstractAction("Сохранить") {
+            public void actionPerformed(ActionEvent event) {
+                try {
+                    JFileChooser jf = new JFileChooser();
+                    // Создаем фильтры  файлов
+                    TextFileFilter pngFilter = new TextFileFilter(".png");
+                    TextFileFilter jpgFilter = new TextFileFilter(".jpg");
+                    if (fileName == null) {
+                        // Добавляем фильтры
+                        jf.addChoosableFileFilter(pngFilter);
+                        jf.addChoosableFileFilter(jpgFilter);
+                        int result = jf.showSaveDialog(null);
+                        if (result == JFileChooser.APPROVE_OPTION) {
+                            fileName = jf.getSelectedFile().getAbsolutePath();
+                        }
+                    }
+                    // Смотрим какой фильтр выбран
+                    if (jf.getFileFilter() == pngFilter) {
+                        ImageIO.write(image, "png", new File(fileName + ".png"));
+                    } else {
+                        ImageIO.write(image, "jpeg", new File(fileName + ".jpg"));
+                    }
+                } catch (IOException ex) {
+                    JOptionPane.showMessageDialog(frame, "Ошибка ввода-вывода");
+                }
+            }
+        };
+        return new JMenuItem(saveAction);
+    }
+
+    private JMenuItem createSaveAsFileMenuItem() {
+        Action saveAsAction = new AbstractAction("Сохранить как...") {
+            public void actionPerformed(ActionEvent event) {
+                try {
+                    JFileChooser jf = new JFileChooser();
+                    // Создаем фильтры для файлов
+                    TextFileFilter pngFilter = new TextFileFilter(".png");
+                    TextFileFilter jpgFilter = new TextFileFilter(".jpg");
+                    // Добавляем фильтры
+                    jf.addChoosableFileFilter(pngFilter);
+                    jf.addChoosableFileFilter(jpgFilter);
+                    int result = jf.showSaveDialog(null);
+                    if (result == JFileChooser.APPROVE_OPTION) {
+                        fileName = jf.getSelectedFile().getAbsolutePath();
+                    }
+                    // Смотрим какой фильтр выбран
+                    if (jf.getFileFilter() == pngFilter) {
+                        ImageIO.write(image, "png", new File(fileName + ".png"));
+                    } else {
+                        ImageIO.write(image, "jpeg", new File(fileName + ".jpg"));
+                    }
+                } catch (IOException ex) {
+                    JOptionPane.showMessageDialog(frame, "Ошибка ввода-вывода");
+                }
+            }
+        };
+        return new JMenuItem(saveAsAction);
+    }
+
+    private JPanel createPanel() {
+        panel = new MyPanel();
+        panel.setBounds(30, 30, 260, 260);
+        panel.setBackground(Color.white);
+        panel.setOpaque(true);
+        return panel;
     }
 
     public static void start() {
