@@ -2,27 +2,35 @@ package com.valevich;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
-import javax.swing.filechooser.FileFilter;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.prefs.Preferences;
+
+import static java.util.prefs.Preferences.userNodeForPackage;
 
 public class Editor {
     // Режим рисования 
-    private int mode = 0;
+    private int mode = 1;
     private int xPad;
     private int xf;
     private int yf;
     private int yPad;
-    private int thickness;
+    private int thickness = 2;
     private boolean isPressed = false;
     // текущий цвет
     private Color currentColor = Color.black;
+    private Color themeColor = Color.DARK_GRAY;
+    private Color themeColorSecond = Color.black;
+    private Color themeAccentColor = Color.WHITE;
+
     private JFrame frame;
     private MyPanel panel;
+    private MyMenuBar menuBar;
+    private JMenu fileMenu;
     private JButton colorbutton;
     private JColorChooser colorChooser;
     // поверхность рисования
@@ -31,30 +39,38 @@ public class Editor {
     private boolean isLoading = false;
     private String fileName;
 
-    private Rectangle prevRectangle = new Rectangle();
-
     public Editor() {
+        setTheme();
         configureFrame();
         createColorChooser();
     }
 
+    private void setTheme() {
+        Preferences prefs = Preferences.userNodeForPackage(com.valevich.Editor.class);
+        String defaultValue = "DARK";
+        String themeString = prefs.get("theme", defaultValue);
+        if (!themeString.equals(defaultValue)) {
+            themeColor = Color.WHITE;
+            themeColorSecond = Color.LIGHT_GRAY;
+            themeAccentColor = Color.black;
+        }
+    }
+
     private void configureFrame() {
-        frame = new JFrame("Графический редактор");
-        frame.setBounds(350,0,1000,1000);
+        frame = new JFrame("Editor");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setJMenuBar(createMenuBar());
         frame.add(createPanel());
         frame.add(createToolbar());
-        frame.add(createColorBar());
         frame.addComponentListener(new ComponentAdapter() {
             public void componentResized(java.awt.event.ComponentEvent evt) {
                 // если делаем загрузку, то изменение размеров формы
                 // отрабатываем в коде загрузки
                 if (!isLoading) {
-                    panel.setSize(frame.getWidth() - 40, frame.getHeight() - 80);
+                    panel.setSize(frame.getWidth(), frame.getHeight() - 60);
                     BufferedImage tempImage = new BufferedImage(panel.getWidth(), panel.getHeight(), BufferedImage.TYPE_INT_RGB);
                     Graphics2D d2 = tempImage.createGraphics();
-                    d2.setColor(Color.white);
+                    d2.setColor(themeColor);
                     d2.fillRect(0, 0, panel.getWidth(), panel.getHeight());
                     tempImage.setData(image.getRaster());
                     image = tempImage;
@@ -63,31 +79,76 @@ public class Editor {
                 isLoading = false;
             }
         });
+        frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
+        frame.setUndecorated(true);
         frame.setLayout(null);
         frame.setVisible(true);
     }
 
     private JMenuBar createMenuBar() {
-        JMenuBar menuBar = new JMenuBar();
-        menuBar.setBounds(0, 0, 350, 60);
+        menuBar = new MyMenuBar(themeColorSecond);
         menuBar.add(createFileMenu());
         return menuBar;
     }
 
     private JMenu createFileMenu() {
-        JMenu fileMenu = new JMenu("Файл");
+        fileMenu = new JMenu("Файл");
+        fileMenu.setForeground(themeAccentColor);
         fileMenu.add(createNewFileMenuItem());
         fileMenu.add(createLoadFileMenuItem());
         fileMenu.add(createSaveFileMenuItem());
         fileMenu.add(createSaveAsFileMenuItem());
+        createThemeMenu(fileMenu);
         return fileMenu;
+    }
+
+    private void createThemeMenu(JMenu menu) {
+        menu.addSeparator();
+        ButtonGroup group = new ButtonGroup();
+        Preferences prefs = Preferences.userNodeForPackage(com.valevich.Editor.class);
+        JRadioButtonMenuItem lightThemeItem = new JRadioButtonMenuItem("Светлая тема");
+        lightThemeItem.setSelected(!prefs.get("theme", "DARK").equals("DARK"));
+        lightThemeItem.setMnemonic(KeyEvent.VK_R);
+        lightThemeItem.addActionListener(e -> {
+            prefs.put("theme","LIGHT");
+            themeColor = Color.WHITE;
+            themeColorSecond = Color.LIGHT_GRAY;
+            themeAccentColor = Color.black;
+            switchTheme();
+        });
+        group.add(lightThemeItem);
+        menu.add(lightThemeItem);
+
+        JRadioButtonMenuItem darkThemeItem = new JRadioButtonMenuItem("Темная тема");
+        darkThemeItem.setMnemonic(KeyEvent.VK_O);
+        darkThemeItem.setSelected(prefs.get("theme", "DARK").equals("DARK"));
+        darkThemeItem.addActionListener(e -> {
+            prefs.put("theme","DARK");
+            themeColor = Color.DARK_GRAY;
+            themeColorSecond = Color.black;
+            themeAccentColor = Color.WHITE;
+            switchTheme();
+        });
+        group.add(darkThemeItem);
+        menu.add(darkThemeItem);
+    }
+
+    private void switchTheme() {
+        Graphics2D d2 = (Graphics2D) image.getGraphics();
+        d2.setColor(themeColor);
+        d2.fillRect(0, 0, panel.getWidth(), panel.getHeight());
+        panel.repaint();
+        menuBar.setColor(themeColorSecond);
+        menuBar.repaint();
+        fileMenu.setForeground(themeAccentColor);
+        fileMenu.repaint();
     }
 
     private JMenuItem createNewFileMenuItem() {
         Action loadAction = new AbstractAction("Новый") {
             public void actionPerformed(ActionEvent event) {
                 Graphics2D d2 = (Graphics2D) image.getGraphics();
-                d2.setColor(Color.white);
+                d2.setColor(themeColor);
                 d2.fillRect(0, 0, panel.getWidth(), panel.getHeight());
                 panel.repaint();
             }
@@ -96,7 +157,7 @@ public class Editor {
     }
 
     private JMenuItem createLoadFileMenuItem() {
-        Action loadAction = new AbstractAction("Загрузить") {
+        Action loadAction = new AbstractAction("Открыть") {
             public void actionPerformed(ActionEvent event) {
                 JFileChooser jf = new JFileChooser();
                 int result = jf.showOpenDialog(null);
@@ -110,7 +171,7 @@ public class Editor {
                         jf.addChoosableFileFilter(new TextFileFilter(".jpg"));
                         image = ImageIO.read(iF);
                         isLoading = true;
-                        frame.setSize(image.getWidth() + 40, image.getWidth() + 80);
+                        //frame.setSize(image.getWidth() + 40, image.getWidth() + 80);
                         panel.setSize(image.getWidth(), image.getWidth());
                         panel.repaint();
                     } catch (FileNotFoundException ex) {
@@ -153,7 +214,12 @@ public class Editor {
                 }
             }
         };
-        return new JMenuItem(saveAction);
+        saveAction.putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke("shift S"));
+        JMenuItem item = new JMenuItem(saveAction);
+        item.getActionMap().put("save_file", saveAction);
+        item.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .put((KeyStroke) saveAction.getValue(Action.ACCELERATOR_KEY),"save_file");
+        return item;
     }
 
     private JMenuItem createSaveAsFileMenuItem() {
@@ -182,13 +248,19 @@ public class Editor {
                 }
             }
         };
-        return new JMenuItem(saveAsAction);
+        saveAsAction.putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke("control shift S"));
+        JMenuItem item = new JMenuItem(saveAsAction);
+        item.getActionMap().put("save_file", saveAsAction);
+        item.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .put((KeyStroke) saveAsAction.getValue(Action.ACCELERATOR_KEY),"save_file");
+
+        return item;
     }
 
     private JPanel createPanel() {
         panel = new MyPanel();
-        panel.setBounds(0, 90, 260, 260);
-        panel.setBackground(Color.white);
+        panel.setBounds(0, 40, 260, 260);
+        panel.setBackground(themeColor);
         panel.setOpaque(true);
 
         panel.addMouseMotionListener(new MouseMotionAdapter() {
@@ -198,32 +270,16 @@ public class Editor {
                     Graphics2D g2 = (Graphics2D) g;
                     // установка цвета
                     g2.setColor(currentColor);
+                    g2.setStroke(new BasicStroke(thickness));
                     switch (mode) {
-                        // карандаш
-                        case 0:
-                            g2.drawLine(xPad, yPad, e.getX(), e.getY());
-                            break;
                         // кисть
                         case 1:
-                            g2.setStroke(new BasicStroke(3.0f));
                             g2.drawLine(xPad, yPad, e.getX(), e.getY());
                             break;
                         // ластик
                         case 2:
-                            g2.setStroke(new BasicStroke(3.0f));
-                            g2.setColor(Color.WHITE);
+                            g2.setColor(themeColor);
                             g2.drawLine(xPad, yPad, e.getX(), e.getY());
-                            break;
-                        //прямоугольник
-                        case 6:
-                            g2.setColor(Color.WHITE);
-                            g2.drawRect(prevRectangle.getX(),prevRectangle.getY(),prevRectangle.getWidth(),prevRectangle.getHeight());
-                            g2.setColor(currentColor);
-                            g2.drawRect(xf, yf, (xPad - xf), (yPad - yf));
-                            prevRectangle.setX(xf);
-                            prevRectangle.setY(yf);
-                            prevRectangle.setWidth(xPad - xf);
-                            prevRectangle.setHeight(yPad - yf);
                             break;
                     }
                     xPad = e.getX();
@@ -239,20 +295,15 @@ public class Editor {
                 Graphics2D g2 = (Graphics2D) g;
                 // установка цвета
                 g2.setColor(currentColor);
+                g2.setStroke(new BasicStroke(thickness));
                 switch (mode) {
-                    // карандаш
-                    case 0:
-                        g2.drawLine(xPad, yPad, xPad + 1, yPad + 1);
-                        break;
                     // кисть
                     case 1:
-                        g2.setStroke(new BasicStroke(3.0f));
                         g2.drawLine(xPad, yPad, xPad + 1, yPad + 1);
                         break;
                     // ластик
                     case 2:
-                        g2.setStroke(new BasicStroke(3.0f));
-                        g2.setColor(Color.WHITE);
+                        g2.setColor(themeColor);
                         g2.drawLine(xPad, yPad, xPad + 1, yPad + 1);
                         break;
                     // текст
@@ -283,6 +334,7 @@ public class Editor {
                 Graphics2D g2 = (Graphics2D) g;
                 // установка цвета
                 g2.setColor(currentColor);
+                g2.setStroke(new BasicStroke(thickness));
                 // Общие рассчеты для овала и прямоугольника
                 int x1 = xf, x2 = xPad, y1 = yf, y2 = yPad;
                 if (xf > xPad) {
@@ -304,8 +356,7 @@ public class Editor {
                         break;
                     // прямоугольник
                     case 6:
-                        prevRectangle.reset();
-                        //g.drawRect(x1, y1, (x2 - x1), (y2 - y1));
+                        g.drawRect(x1, y1, (x2 - x1), (y2 - y1));
                         break;
                 }
                 xf = 0;
@@ -328,13 +379,13 @@ public class Editor {
                     Graphics2D g2 = (Graphics2D) g;
                     // установка цвета
                     g2.setColor(currentColor);
-                    g2.setStroke(new BasicStroke(2.0f));
+                    g2.setStroke(new BasicStroke(thickness));
 
                     String str = "";
                     str += e.getKeyChar();
-                    g2.setFont(new Font("Arial", 0, 15));
+                    g2.setFont(new Font("Arial", 0, 15 * thickness));
                     g2.drawString(str, xPad, yPad);
-                    xPad += 10;
+                    xPad += 15 * thickness;
                     // устанавливаем фокус для панели,
                     // чтобы печатать на ней текст
                     panel.requestFocus();
@@ -342,17 +393,13 @@ public class Editor {
                 }
             }
         });
+
         return panel;
     }
 
     private JToolBar createToolbar() {
 
-        JToolBar toolbar = new JToolBar("Toolbar", JToolBar.HORIZONTAL);
-
-        JButton penbutton = new JButton();
-        penbutton.setIcon(getIcon("/res/pen.png"));
-        penbutton.addActionListener(event -> mode = 0);
-        toolbar.add(penbutton);
+        MyToolBar toolbar = new MyToolBar("Toolbar", JToolBar.HORIZONTAL,themeColorSecond);
 
         JButton brushbutton = new JButton();
         brushbutton.setIcon(getIcon("/res/brush.png"));
@@ -384,8 +431,30 @@ public class Editor {
         rectbutton.addActionListener(event -> mode = 6);
         toolbar.add(rectbutton);
 
-        toolbar.setBounds(0, 0, 260, 40);
+        Integer[] thicknesses = {2, 3, 4, 5, 6, 7, 8, 9, 10};
+
+        JComboBox<Integer> thicknessBox = new JComboBox<>(thicknesses);
+        //thicknessBox.setBounds(300,0,50,40);
+        thicknessBox.setSelectedIndex(0);
+        thicknessBox.addActionListener(e -> {
+            JComboBox cb = (JComboBox) e.getSource();
+            thickness = (int) cb.getSelectedItem();
+        });
+        toolbar.add(thicknessBox);
+
+        colorbutton = new JButton();
+        colorbutton.setBackground(currentColor);
+        //colorbutton.setBounds(350,0,50,40);
+        colorbutton.addActionListener(event -> {
+            ColorDialog colorDialog = new ColorDialog(frame, "Выбор цвета",colorChooser);
+            colorDialog.setBounds(0,0,400,400);
+            colorDialog.setVisible(true);
+        });
+        toolbar.add(colorbutton);
+
+        toolbar.setBounds(0, 0, 300, 40);
         toolbar.setFloatable(false);
+        toolbar.setLayout(new GridLayout(1,8));
 
         return toolbar;
 
@@ -401,103 +470,6 @@ public class Editor {
         return image == null ? null : new ImageIcon(image);
     }
 
-    private JToolBar createColorBar() {
-        JToolBar colorbar = new JToolBar("Colorbar", JToolBar.HORIZONTAL);
-        colorbutton = new JButton();
-        colorbutton.setBackground(currentColor);
-        colorbutton.setBounds(15, 5, 40, 40);
-        colorbutton.addActionListener(event -> {
-            ColorDialog coldi = new ColorDialog(frame, "Выбор цвета");
-            coldi.setVisible(true);
-        });
-        colorbar.add(colorbutton);
-
-        JButton redbutton = new JButton();
-        redbutton.setBackground(Color.red);
-        redbutton.setBounds(40, 5, 15, 15);
-        redbutton.addActionListener(event -> {
-            currentColor = Color.red;
-            colorbutton.setBackground(currentColor);
-        });
-        colorbar.add(redbutton);
-
-        JButton orangebutton = new JButton();
-        orangebutton.setBackground(Color.orange);
-        orangebutton.setBounds(60, 5, 15, 15);
-        orangebutton.addActionListener(event -> {
-            currentColor = Color.orange;
-            colorbutton.setBackground(currentColor);
-        });
-        colorbar.add(orangebutton);
-
-        JButton yellowbutton = new JButton();
-        yellowbutton.setBackground(Color.yellow);
-        yellowbutton.setBounds(80, 5, 15, 15);
-        yellowbutton.addActionListener(event -> {
-            currentColor = Color.yellow;
-            colorbutton.setBackground(currentColor);
-        });
-        colorbar.add(yellowbutton);
-
-        JButton greenbutton = new JButton();
-        greenbutton.setBackground(Color.green);
-        greenbutton.setBounds(100, 5, 15, 15);
-        greenbutton.addActionListener(event -> {
-            currentColor = Color.green;
-            colorbutton.setBackground(currentColor);
-        });
-        colorbar.add(greenbutton);
-
-        JButton bluebutton = new JButton();
-        bluebutton.setBackground(Color.blue);
-        bluebutton.setBounds(120, 5, 15, 15);
-        bluebutton.addActionListener(event -> {
-            currentColor = Color.blue;
-            colorbutton.setBackground(currentColor);
-        });
-        colorbar.add(bluebutton);
-
-        JButton cyanbutton = new JButton();
-        cyanbutton.setBackground(Color.cyan);
-        cyanbutton.setBounds(140, 5, 15, 15);
-        cyanbutton.addActionListener(event -> {
-            currentColor = Color.cyan;
-            colorbutton.setBackground(currentColor);
-        });
-        colorbar.add(cyanbutton);
-
-        JButton magentabutton = new JButton();
-        magentabutton.setBackground(Color.magenta);
-        magentabutton.setBounds(160, 5, 15, 15);
-        magentabutton.addActionListener(event -> {
-            currentColor = Color.magenta;
-            colorbutton.setBackground(currentColor);
-        });
-        colorbar.add(magentabutton);
-
-        JButton whitebutton = new JButton();
-        whitebutton.setBackground(Color.white);
-        whitebutton.setBounds(180, 5, 15, 15);
-        whitebutton.addActionListener(event -> {
-            currentColor = Color.white;
-            colorbutton.setBackground(currentColor);
-        });
-        colorbar.add(whitebutton);
-
-        JButton blackbutton = new JButton();
-        blackbutton.setBackground(Color.black);
-        blackbutton.setBounds(200, 5, 15, 15);
-        blackbutton.addActionListener(event -> {
-            currentColor = Color.black;
-            colorbutton.setBackground(currentColor);
-        });
-        colorbar.add(blackbutton);
-        colorbar.setBounds(0, 40, 260, 40);
-        colorbar.setLayout(null);
-        colorbar.setFloatable(false);
-        return colorbar;
-    }
-
     private void createColorChooser() {
         colorChooser = new JColorChooser(currentColor);
         colorChooser.getSelectionModel().addChangeListener(e -> {
@@ -510,23 +482,14 @@ public class Editor {
         SwingUtilities.invokeLater(Editor::new);
     }
 
-    class ColorDialog extends JDialog {
-        public ColorDialog(JFrame owner, String title) {
-            super(owner, title, true);
-            add(colorChooser);
-            setSize(200, 200);
-        }
-    }
 
     class MyPanel extends JPanel {
-        public MyPanel() {
-        }
 
         public void paintComponent(Graphics g) {
             if (image == null) {
                 image = new BufferedImage(this.getWidth(), this.getHeight(), BufferedImage.TYPE_INT_RGB);
-                Graphics2D d2 = (Graphics2D) image.createGraphics();
-                d2.setColor(Color.white);
+                Graphics2D d2 = image.createGraphics();
+                d2.setColor(themeColor);
                 d2.fillRect(0, 0, this.getWidth(), this.getHeight());
             }
             super.paintComponent(g);
@@ -534,21 +497,4 @@ public class Editor {
         }
     }
 
-    // Фильтр картинок
-    class TextFileFilter extends FileFilter {
-        private String ext;
-
-        public TextFileFilter(String ext) {
-            this.ext = ext;
-        }
-
-        public boolean accept(java.io.File file) {
-            if (file.isDirectory()) return true;
-            return (file.getName().endsWith(ext));
-        }
-
-        public String getDescription() {
-            return "*" + ext;
-        }
-    }
 }
